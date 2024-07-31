@@ -2,9 +2,7 @@ import os
 import pickle
 import webbrowser
 
-import librosa
 import pd
-import requests
 import requests_oauthlib
 
 import freesound
@@ -36,11 +34,14 @@ def unpickle_object(name):
 
 
 # ╭──────────────────────────────────────╮
-# │       freesound object methods       │
+# │            LOGIN METHODS             │
 # ╰──────────────────────────────────────╯
 
-FREESOUND_CLIENT = None
+"""
+We use global variables to store the client_id, api_key, and oauth_key. 
+"""
 
+FREESOUND_CLIENT = None
 OAUTH = None
 TOKEN = None
 CLIENT_ID = None
@@ -49,7 +50,7 @@ OAUTH_KEY = None
 LOGGED_IN = False
 
 
-def setThing(listKey):
+def set_login_var(listKey):
     global OAUTH
     global TOKEN
     global CLIENT_ID
@@ -115,6 +116,7 @@ def login():
         token = unpickle_object("_token")
         FREESOUND_CLIENT = freesound.FreesoundClient()
         FREESOUND_CLIENT.set_token(token["access_token"], auth_type="oauth")
+        pd.print("Logged successfully")
     else:
         token = OAUTH.fetch_token(
             token_url,
@@ -123,47 +125,15 @@ def login():
             client_secret=API_KEY,
         )
         pickle_object(token, "_token")
-        pd.print("Logged in successfully")
+        pd.print("Logged successfully")
         token = unpickle_object("_token")
         FREESOUND_CLIENT = freesound.FreesoundClient()
         FREESOUND_CLIENT.set_token(token["access_token"], auth_type="oauth")
 
 
-def filter(args):
-    key = args[0]
-    if key == "duration":
-        min_duration = args[1]
-        max_duration = args[2]
-        pd.set_obj_var(
-            "f_duration", "duration:[{} TO {}]".format(min_duration, max_duration)
-        )
-        pd.print("Duration filter set")
-
-
-def search(query):
-    global FREESOUND_CLIENT
-
-    if FREESOUND_CLIENT is None:
-        pd.error("Please login first")
-        return None
-
-    pd.print("Searching for: " + query)
-    filter = ""
-    duration_filter = pd.get_obj_var("f_duration")
-    if duration_filter is not None:
-        filter = duration_filter
-
-    if filter != "":
-        results = FREESOUND_CLIENT.text_search(
-            query=query, fields="name,id", filter=filter
-        )
-    else:
-        results = FREESOUND_CLIENT.text_search(query=query, fields="name,id")
-
-    pd.set_obj_var("search", results)
-    pd.print("Search completed!")
-
-
+# ╭──────────────────────────────────────╮
+# │            Search Methods            │
+# ╰──────────────────────────────────────╯
 def get(something):
     results = pd.get_obj_var("search")
     if results is None:
@@ -185,19 +155,18 @@ def download(id):
             path = pd.get_patch_dir() + "/freesound"
             if not os.path.exists(path):
                 os.makedirs(path)
-            filename = path + f"/{result.id}.wav"
+
+            filename = path + f"/{result.id}.{result.type}"
             if os.path.exists(filename):
                 pd.print("File already downloaded")
                 return ["sound", filename]
-            result.retrieve(path, name=f"{result.id}.wav")
+
+            result.retrieve(path, name=f"{result.id}.{result.type}")
             pd.print("Downloaded successfully")
-            return ["sound", path + f"/{result.id}.wav"]
+            return ["sound", path + f"/{result.id}.{result.type}"]
 
 
-# ╭──────────────────────────────────────╮
-# │          Parameters Builder          │
-# ╰──────────────────────────────────────╯
-def addParamsSearch(params):
+def target(params):
     if not FREESOUND_CLIENT:
         pd.error("Please login first")
         return
@@ -207,48 +176,116 @@ def addParamsSearch(params):
         pd.error("Insufficient parameters provided")
         return
 
-    param_id = params[0]
-    parameter0 = params[1]
-
-    if len(params) == 3:
-        parameter1 = params[2]
-        if isinstance(parameter0, float):
-            parameter0 = round(parameter0, 2)
-        if isinstance(parameter1, float):
-            parameter1 = round(parameter1, 2)
-        string = f"{param_id}:[{parameter0} TO {parameter1}]"
-    else:
-        string = f"{param_id}:{parameter0}"
-
-    results = pd.get_obj_var("params", initial_value=[])
-    results.append(string)
-    pd.set_obj_var("params", results)
+    results = pd.get_obj_var("target", initial_value=[])
+    for i in range(len(results)):
+        if results[i][0] == params[0]:
+            results[i] = params
+            pd.set_obj_var("target", results)
+            return
+    results.append(params)
+    pd.set_obj_var("target", results)
 
 
-def clear():
-    pd.set_obj_var("params", [])
-    pd.print("Parameters cleared")
+def filter(params):
+    if not FREESOUND_CLIENT:
+        pd.error("Please login first")
+        return
+
+    # Ensure params has the correct length and types
+    if len(params) < 2:
+        pd.error("Insufficient parameters provided")
+        return
+
+    results = pd.get_obj_var("filter", initial_value=[])
+    for i in range(len(results)):
+        if results[i][0] == params[0]:
+            results[i] = params
+            pd.set_obj_var("filter", results)
+            return
+    results.append(params)
+    pd.set_obj_var("filter", results)
 
 
-def freesoundParamsSearch():
+def query(params):
+    if not FREESOUND_CLIENT:
+        pd.error("Please login first")
+        return
+
+    # Ensure params has the correct length and types
+    if len(params) < 1:
+        pd.error("To use [query], type at least 1 word")
+        return
+
+    if type(params) != list:
+        params = [params]
+
+    pd.set_obj_var("query", [])
+    query = pd.get_obj_var("query", initial_value=[])
+    for i in range(len(params)):
+        query.append(params[i])
+    pd.set_obj_var("query", query)
+
+
+def search():
     global FREESOUND_CLIENT
+
     if FREESOUND_CLIENT is None:
         pd.error("Please login first")
         return None
 
-    results = pd.get_obj_var("params", initial_value=[])
-    if not results:
-        pd.error("Please add parameters first")
+    # target
+    target = pd.get_obj_var("target", initial_value=[])
+    filter = pd.get_obj_var("filter", initial_value=[])
+
+    # TODO: Precisa rever isso aqui para ser mais completo
+    target_string = ""
+    for i in range(len(target)):
+        target_string += f"{target[i][0]}:{target[i][1]} "
+
+    filter_string = ""
+    for i in range(len(filter)):
+        if len(filter[i]) == 2:
+            filter_string += f"{filter[i][0]}:{filter[i][1]} AND "
+        elif len(filter[i]) == 3:
+            filter_string += f"{filter[i][0]}:[{filter[i][1]} TO {filter[i][2]}] AND "
+        else:
+            raise AttributeError(
+                "Filter with more than 3 parameters are not implemented yet"
+            )
+
+    if filter_string == "":
+        filter_string = None
+
+    # query
+    query = pd.get_obj_var("query", initial_value=[])
+    query = " ".join(query)
+
+    # finally search
+    results = FREESOUND_CLIENT.text_search(
+        query=query,
+        target=target_string,
+        filter=filter_string,
+        fields="id,name,duration,type",
+    )
+
+    if len(results.results) == 0:
+        pd.print("No results found")
         return
 
-    string = " ".join(results)
-    string = string.encode("utf-8")
-    results_pager = FREESOUND_CLIENT.content_based_search(
-        descriptors_filter=string,
-        fields="id,name,analysis,duration",
-    )
-    pd.set_obj_var("search", results_pager)
+    if hasattr(results[0], "name"):
+        pd.print("", show_prefix=False)
+        for result in results:
+            pd.print(getattr(result, "id"), getattr(result, "name"))
+
+    pd.set_obj_var("search", results)
     pd.print("Search completed!")
+
+
+def clear():
+    pd.set_obj_var("target", [])
+    pd.set_obj_var("filter", [])
+    pd.set_obj_var("query", [])
+    pd.print("Parameters cleared")
 
 
 # ╭──────────────────────────────────────╮
@@ -256,25 +293,28 @@ def freesoundParamsSearch():
 # ╰──────────────────────────────────────╯
 def py4pdLoadObjects():
     # freesound
-    py4pd_parmsearch = pd.new_object("f.main")
-    py4pd_parmsearch.py_out = True
-    py4pd_parmsearch.ignore_none = True
+    pd_freesound = pd.new_object("freesound")
+    pd_freesound.py_out = True
+    pd_freesound.ignore_none = True
 
-    py4pd_parmsearch.addmethod("oauth", initialize_oauth)
-    py4pd_parmsearch.addmethod("login", login)
-    py4pd_parmsearch.addmethod("search", search)
-    py4pd_parmsearch.addmethod("get", get)
-    py4pd_parmsearch.addmethod("set", setThing)
-    py4pd_parmsearch.addmethod("download", download)
-    py4pd_parmsearch.addmethod("filter", filter)
+    # login
+    pd_freesound.addmethod("set", set_login_var)
+    pd_freesound.addmethod("oauth", initialize_oauth)
+    pd_freesound.addmethod("login", login)
 
-    py4pd_parmsearch.add_object()
+    # search
+    pd_freesound.addmethod("target", target)
+    pd_freesound.addmethod("filter", filter)
+    pd_freesound.addmethod("query", query)
 
-    # f.paramsearch
-    py4pd_parmsearch = pd.new_object("f.paramsearch")
-    py4pd_parmsearch.addmethod("search", freesoundParamsSearch)
-    py4pd_parmsearch.addmethod("add", addParamsSearch)
-    py4pd_parmsearch.addmethod("clear", clear)
-    py4pd_parmsearch.addmethod("get", get)
-    py4pd_parmsearch.addmethod("download", download)
-    py4pd_parmsearch.add_object()
+    pd_freesound.addmethod("search", search)
+
+    pd_freesound.addmethod("clear", clear)  # clear all configs
+
+    # get info
+    pd_freesound.addmethod("get", get)
+
+    # download
+    pd_freesound.addmethod("download", download)
+
+    pd_freesound.add_object()
