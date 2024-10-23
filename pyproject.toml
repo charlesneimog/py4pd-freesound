@@ -1,0 +1,20 @@
+[project]
+name = "py4pd-freesound" # name to be used when running pip install 
+version = "0.1.0" # version number 
+description = "Download samples from freesound." # Description
+dependencies = [
+    "git+https://github.com/MTG/freesound-python",
+]
+
+[project.urls]
+"Source Code" = "https://github.com/charlesneimog/py4pd-freesound" 
+
+[tool.setuptools]
+packages = ["upic"]  # Name of the package to be imported
+
+[tool.setuptools.package-data]
+"upic" = ["*", "help/*"]  # Include all files inside upic folder and all files inside upic/help folder
+
+[tool.black]
+line-length = 180
+

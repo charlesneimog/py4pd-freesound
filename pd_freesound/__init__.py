@@ -134,6 +134,47 @@ def login():
 # ╭──────────────────────────────────────╮
 # │            Search Methods            │
 # ╰──────────────────────────────────────╯
+def create_strings():
+    target = pd.get_obj_var("target", initial_value=[])
+    filter = pd.get_obj_var("filter", initial_value=[])
+    query = pd.get_obj_var("query", initial_value=[])
+
+    # TODO: Precisa rever isso aqui para ser mais completo
+    target_string = ""
+    for i in range(len(target)):
+        target_string += f"{target[i][0]}:{target[i][1]} "
+
+    filter_string = ""
+    for i in range(len(filter)):
+        if len(filter[i]) == 2:
+            filter_string += f"{filter[i][0]}:{filter[i][1]} "
+        elif len(filter[i]) == 3:
+            filter_string += f"{filter[i][0]}:[{filter[i][1]} TO {filter[i][2]}] "
+        else:
+            raise AttributeError(
+                "Filter with more than 3 parameters are not implemented yet"
+            )
+
+    target_string = ""
+    for i in range(len(target)):
+        target_string += f"{target[i][0]}:{target[i][1]} "
+
+    if target_string == "":
+        target_string = None
+    else:
+        target_string = target_string.encode("utf-8")
+
+    if filter_string == "":
+        filter_string = None
+    else:
+        filter_string = filter_string.encode("utf-8")
+
+    # query
+    query = " ".join(query).encode("utf-8")
+
+    return target_string, filter_string, query
+
+
 def get(something):
     results = pd.get_obj_var("search")
     if results is None:
@@ -149,21 +190,49 @@ def get(something):
 
 def download(id):
     global FREESOUND_CLIENT
+    if FREESOUND_CLIENT is None:
+        pd.error("Please login first")
+        return None
+
     results = pd.get_obj_var("search")
-    for result in results:
-        if result.id == id:
-            path = pd.get_patch_dir() + "/freesound"
-            if not os.path.exists(path):
-                os.makedirs(path)
+    if results is not None:
+        for result in results:
+            if result.id == id:
+                path = pd.get_patch_dir() + "/freesound"
+                if not os.path.exists(path):
+                    os.makedirs(path)
 
-            filename = path + f"/{result.id}.{result.type}"
-            if os.path.exists(filename):
-                pd.print("File already downloaded")
-                return ["sound", filename]
+                filename = path + f"/{result.id}.{result.type}"
+                if os.path.exists(filename):
+                    pd.print("File already downloaded")
+                    return ["sound", filename]
 
-            result.retrieve(path, name=f"{result.id}.{result.type}")
-            pd.print("Downloaded successfully")
-            return ["sound", path + f"/{result.id}.{result.type}"]
+                result.retrieve(path, name=f"{result.id}.{result.type}")
+                pd.print("Downloaded successfully")
+                return ["sound", path + f"/{result.id}.{result.type}"]
+    else:
+        path = pd.get_patch_dir() + "/freesound"
+        sound = FREESOUND_CLIENT.get_sound(id)
+        filename = path + f"/{sound.id}.{sound.type}"
+        if os.path.exists(filename):
+            pd.print("File already downloaded")
+            return ["sound", filename]
+        sound.retrieve(path, name=f"{sound.id}.{sound.type}")
+        pd.print("Downloaded successfully")
+        return ["sound", path + f"/{sound.id}.{sound.type}"]
+
+
+def remove(id):
+    path = pd.get_patch_dir() + "/freesound"
+    if not os.path.exists(path):
+        pd.error("No files to remove")
+        return
+
+    for file in os.listdir(path):
+        if file.startswith(f"{id}."):
+            os.remove(path + "/" + file)
+            pd.print("File removed successfully")
+            return
 
 
 def target(params):
@@ -234,31 +303,7 @@ def search():
         return None
 
     # target
-    target = pd.get_obj_var("target", initial_value=[])
-    filter = pd.get_obj_var("filter", initial_value=[])
-
-    # TODO: Precisa rever isso aqui para ser mais completo
-    target_string = ""
-    for i in range(len(target)):
-        target_string += f"{target[i][0]}:{target[i][1]} "
-
-    filter_string = ""
-    for i in range(len(filter)):
-        if len(filter[i]) == 2:
-            filter_string += f"{filter[i][0]}:{filter[i][1]} AND "
-        elif len(filter[i]) == 3:
-            filter_string += f"{filter[i][0]}:[{filter[i][1]} TO {filter[i][2]}] AND "
-        else:
-            raise AttributeError(
-                "Filter with more than 3 parameters are not implemented yet"
-            )
-
-    if filter_string == "":
-        filter_string = None
-
-    # query
-    query = pd.get_obj_var("query", initial_value=[])
-    query = " ".join(query)
+    target_string, filter_string, query = create_strings()
 
     # finally search
     results = FREESOUND_CLIENT.text_search(
@@ -275,10 +320,52 @@ def search():
     if hasattr(results[0], "name"):
         pd.print("", show_prefix=False)
         for result in results:
-            pd.print(getattr(result, "id"), getattr(result, "name"))
+            id = f"{getattr(result, 'id'):08d}"
+            dur = f"{getattr(result, 'duration'):06.2f}"
+            name = getattr(result, "name")
+            if len(name) > 15:
+                name = name[:15] + "..."
+            pd.print(f"Id: {id} | Duration: {dur} | Name: {name}")
 
     pd.set_obj_var("search", results)
     pd.print("Search completed!")
+
+
+def similar(id):
+    global FREESOUND_CLIENT
+
+    if FREESOUND_CLIENT is None:
+        pd.error("Please login first")
+        return None
+
+    target_string, filter_string, query = create_strings()
+
+    sound = FREESOUND_CLIENT.get_sound(id)
+
+    print(target_string)
+    print(filter_string)
+    results = sound.get_similar(
+        fields="id,name,duration,type",
+        target=target_string,
+        query=query,
+        filter=filter_string,
+    )
+
+    if len(results.results) == 0:
+        pd.print("No results found")
+        return
+
+    if hasattr(results[0], "name"):
+        pd.print("", show_prefix=False)
+        for result in results:
+            id = f"{getattr(result, 'id'):08d}"
+            dur = f"{getattr(result, 'duration'):06.2f}"
+            name = getattr(result, "name")
+            if len(name) > 15:
+                name = name[:15] + "..."
+            pd.print(f"Id: {id} | Duration: {dur} | Name: {name}")
+
+    pd.set_obj_var("search", results)
 
 
 def clear():
@@ -302,19 +389,23 @@ def py4pdLoadObjects():
     pd_freesound.addmethod("oauth", initialize_oauth)
     pd_freesound.addmethod("login", login)
 
-    # search
+    # search query and filters
     pd_freesound.addmethod("target", target)
     pd_freesound.addmethod("filter", filter)
     pd_freesound.addmethod("query", query)
-
-    pd_freesound.addmethod("search", search)
-
     pd_freesound.addmethod("clear", clear)  # clear all configs
 
-    # get info
+    # search
+    pd_freesound.addmethod("similar", similar)
+    pd_freesound.addmethod("search", search)
+
+    # get info about the search
     pd_freesound.addmethod("get", get)
 
     # download
     pd_freesound.addmethod("download", download)
+
+    # delete not so good files
+    pd_freesound.addmethod("remove", remove)
 
     pd_freesound.add_object()

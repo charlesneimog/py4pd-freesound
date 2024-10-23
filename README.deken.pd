@@ -1,9 +1,0 @@
-#N canvas 963 28 951 1012 12;
-#X obj 59 44 cnv 5 5 22 empty empty Thanks\ for\ downloading\ [freesound]\ by\ Charles\ K.\ Neimog! 10 12 0 15 #000000 #202020 0;
-#X text 59 83 The [freesound] external allows you to use Freesound in Pure Data., f 71;
-#X text 60 118 WARNING 1: freesound object required another object called py4pd. You need to download it first (and Python)., f 71;
-#X text 57 176 WARNING 2: After installation of py4pd \, use [py4pd -lib py4pd-freesound] to make [freesound] avaible., f 71;
-#X obj 58 269 py4pd -lib py4pd-freesound;
-#X obj 58 312 freesound;
-#X text 56 227 WARNING 3: I know \, it is a lot of things \, but it worth., f 71;
-#X text 134 311 <= Open the help;
