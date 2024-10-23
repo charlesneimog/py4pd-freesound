@@ -10,10 +10,10 @@ dependencies = [
 "Source Code" = "https://github.com/charlesneimog/py4pd-freesound" 
 
 [tool.setuptools]
-packages = ["upic"]  # Name of the package to be imported
+packages = ["pd_freesound"]  # Name of the package to be imported
 
 [tool.setuptools.package-data]
-"upic" = ["*", "help/*"]  # Include all files inside upic folder and all files inside upic/help folder
+"pd_freesound" = ["*"]# Include all files inside upic folder and all files inside upic/help folder
 
 [tool.black]
 line-length = 180
