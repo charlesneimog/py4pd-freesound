@@ -3,7 +3,7 @@ name = "py4pd-freesound" # name to be used when running pip install
 version = "0.1.0" # version number 
 description = "Download samples from freesound." # Description
 dependencies = [
-    "git+https://github.com/MTG/freesound-python",
+    "freesound-python @ git+https://github.com/MTG/freesound-python"
 ]
 
 [project.urls]

@@ -3,3 +3,5 @@ freesound
 _token.pkl
 secrets.pd
 .cache_ggshield
+dist
+py4pd_freesound.egg-info
